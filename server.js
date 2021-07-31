@@ -5,7 +5,7 @@
 var express = require('express');
 var moment = require('moment');
 var app = express();
-var isUnix = false;
+var isValidUnix = false;
 
 // enable CORS (https://en.wikipedia.org/wiki/Cross-origin_resource_sharing)
 // so that your API is remotely testable by FCC 
@@ -20,48 +20,42 @@ app.get("/", function (req, res) {
   res.sendFile(__dirname + '/views/index.html');
 });
 
-// Date validation
+//Date validation middlewere
 app.param('date', (req, resp, next, date) => {
-  const isDate = moment(date, true).isValid();
-  isUnix = moment.unix(date).isValid();
-  if(isDate || isUnix) {
+  const isValidDate = moment(date, false).isValid();
+  isValidUnix = moment.unix(date).isValid();
+  if(date == null || isValidDate || isValidUnix) {
     next();
   } else {
     resp.json({ error : "Invalid Date" });
   }
  });
 
-app.get("/api/:date", (req, res) => {  
+app.get("/api/:date?", (req, res) => {   
   
-  const toUTCDate = (date) => {
-   return date.toLocaleDateString(
-      'en-gb',
-      {
-       year: 'numeric',
-       month: 'short',
-       day: 'numeric',
-       timeZone: 'utc',
-       weekday: 'short',
-       hour: '2-digit',
-       minute: '2-digit',
-       second: '2-digit',
-       timeZoneName: 'short'
-      }
-    );
+  const toGMTDate = (date) => {
+    return moment.utc(date)
+                 .format('ddd, DD MMM YYYY HH:mm:ss z')
+                 .replace('UTC','GMT');    
   }; 
+  
+  //If date is null let's take the current date
+  if(req.params.date == null) {
+    req.params.date = Date.now();
+  }
 
-  //Fixing date param if it's a Unix epoch  
-  const fixedDate = isUnix ? req.params.date*1000 : req.params.date ; 
-  //Base date object 
+  //Fixing date param if it's a Unix epoch 
+  const fixedDate = isValidUnix ? moment.unix(req.params.date/1000) : req.params.date; 
+  //Base date object   
   const reqDate = new Date(fixedDate);
   //Formatting the base date to UTC 
-  const utcDate = toUTCDate(reqDate);
+  const gmtDate = toGMTDate(reqDate);
   //Retriving Unix epoch
-  const unixDate = isUnix ? req.params.date : reqDate.getTime();
+  const unixDate = isValidUnix ? req.params.date : reqDate.getTime();
   
    const repObj = {
-     unix : unixDate,  
-     utc  : utcDate
+     unix : parseInt(unixDate, 10),  
+     utc  : gmtDate
    }     
 
   res.json(repObj);
